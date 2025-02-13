@@ -1,10 +1,10 @@
 variable "resource_group_name" {
-  description = "The name of the resource group where the AKS cluster will be created."
+  description = "The name of the resource group."
   type        = string
 }
 
-variable "resource_group_location" {
-  description = "The location of the resource group."
+variable "location" {
+  description = "The Azure region where the resources will be deployed."
   type        = string
 }
 
@@ -30,24 +30,37 @@ variable "vm_size" {
   default     = "Standard_DS2_v2"
 }
 
-variable "subnet_id" {
-  description = "The ID of the Subnet to attach to the AKS cluster."
-  type        = string
+variable "vnet_address_space" {
+  description = "The address space for the Virtual Network (CIDR block)."
+  type        = list(string)
+  default     = ["10.0.0.0/16"]
 }
 
-variable "log_analytics_workspace_id" {
-  description = "The ID of the Log Analytics Workspace for monitoring."
-  type        = string
+variable "subnet_address_prefixes" {
+  description = "The address prefixes for the Subnet (CIDR block)."
+  type        = map(string)
+  default = {
+    private = "10.0.1.0/24"
+  }
+}
+
+variable "log_retention_days" {
+  description = "The number of days to retain logs in the Log Analytics Workspace."
+  type        = number
+  default     = 30
 }
 
 variable "enable_private_cluster" {
   description = "Enable private cluster configuration."
   type        = bool
-  default     = false
+  default     = true # Set to true for private cluster
 }
 
 variable "tags" {
   description = "A map of tags to apply to the resources."
   type        = map(string)
-  default     = {}
+  default = {
+    Environment = "Dev"
+    Project     = "Terraform-AKS"
+  }
 }

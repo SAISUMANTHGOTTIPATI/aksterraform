@@ -1,29 +1,51 @@
-resource "azurerm_kubernetes_cluster" "aks_cluster" {
-  name                = var.cluster_name
-  location            = var.resource_group_location
+# Resource Group Module
+module "resource_group" {
+  source              = "./modules/resource-group"
   resource_group_name = var.resource_group_name
-  dns_prefix          = var.dns_prefix
+  location            = var.location
+  tags                = var.tags
+}
 
-  default_node_pool {
-    name           = "default"
-    node_count     = var.node_count
-    vm_size        = var.vm_size
-    vnet_subnet_id = var.subnet_id # Subnet ID passed from the root module
+# Backend Configuration for Terraform State
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "cloud-shell-storage-centralindia"
+    storage_account_name = "csg1003200092705c0f"
+    container_name       = "tfstate"
+    key                  = "terraform.tfstate"
   }
+}
 
-  network_profile {
-    network_plugin     = "azure"
-    service_cidr       = "10.1.0.0/16" # Service CIDR (non-overlapping with VNet)
-    dns_service_ip     = "10.1.0.10"   # Must be within the Service CIDR
-    docker_bridge_cidr = "172.17.0.1/16"
-    outbound_type      = var.enable_private_cluster ? "userDefinedRouting" : "loadBalancer"
-  }
+# Virtual Network Module
+module "vnet" {
+  source                  = "./modules/vnet"
+  resource_group_name     = module.resource_group.resource_group_name
+  location                = module.resource_group.resource_group_location
+  vnet_address_space      = var.vnet_address_space
+  subnet_address_prefixes = var.subnet_address_prefixes
+  tags                    = var.tags
+}
 
-  identity {
-    type = "SystemAssigned"
-  }
+# Log Analytics Workspace
+resource "azurerm_log_analytics_workspace" "logs" {
+  name                = "${var.resource_group_name}-logs"
+  location            = module.resource_group.resource_group_location
+  resource_group_name = module.resource_group.resource_group_name
+  retention_in_days   = var.log_retention_days
+  tags                = var.tags
+}
 
-  private_cluster_enabled = var.enable_private_cluster
-
-  tags = var.tags
+# AKS Module
+module "aks" {
+  source                     = "./modules/aks"
+  resource_group_name        = module.resource_group.resource_group_name
+  resource_group_location    = module.resource_group.resource_group_location
+  cluster_name               = var.cluster_name
+  dns_prefix                 = var.dns_prefix
+  node_count                 = var.node_count
+  vm_size                    = var.vm_size
+  subnet_id                  = module.vnet.subnet_ids["private"] # Use the private subnet ID
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
+  enable_private_cluster     = var.enable_private_cluster
+  tags                       = var.tags
 }
